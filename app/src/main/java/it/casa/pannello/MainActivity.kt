@@ -36,6 +36,10 @@ import it.casa.pannello.ui.screens.CitySettingsScreen
 import it.casa.pannello.ui.screens.InfoScreen
 import it.casa.pannello.ui.screens.MenuScreen
 import it.casa.pannello.ui.screens.QualityScreen
+import it.casa.pannello.ui.screens.UpdateScreen
+import it.casa.pannello.update.UpdateChecker
+import it.casa.pannello.update.UpdateInfo
+import androidx.compose.ui.platform.LocalContext
 import it.casa.pannello.ui.screens.WeatherScreen
 import it.casa.pannello.ui.theme.PanelBackground
 import it.casa.pannello.ui.theme.PanelTheme
@@ -54,6 +58,7 @@ sealed interface Screen {
     data object City : Screen
     data object Info : Screen
     data object Quality : Screen
+    data object Update : Screen
     data object Phone : Screen
 }
 
@@ -73,6 +78,10 @@ private fun App(store: SecureStore) {
     val stack = remember { mutableStateListOf<Screen>(Screen.Home) }
     val weather by rememberWeather(settings.city)
     var notice by remember { mutableStateOf<String?>(null) }
+    // Aggiornamenti: all'apertura, al massimo una volta al giorno (vedi UpdateChecker).
+    val ctx = LocalContext.current
+    var update by remember { mutableStateOf<UpdateInfo?>(UpdateChecker.cached(ctx)) }
+    LaunchedEffect(Unit) { update = UpdateChecker.checkIfDue(ctx) }
     LaunchedEffect(notice) { if (notice != null) { delay(6_000); notice = null } }
     fun push(s: Screen) { stack.add(s) }
     fun pop() { if (stack.size > 1) stack.removeAt(stack.lastIndex) }
@@ -91,6 +100,7 @@ private fun App(store: SecureStore) {
                         // Senza utente/password si apre direttamente la pagina Account.
                         onOpenCamera = { push(if (settings.credentials.isComplete) Screen.Fullscreen(it.id) else Screen.Account) },
                         onOpenSettings = { push(Screen.Menu) },
+                        updateAvailable = update != null,
                         onOpenWeather = { push(Screen.Weather) },
                         onThumbTrouble = {
                             // Video a scatti con qualità Alta: si torna a Risparmio e si avvisa.
@@ -109,11 +119,14 @@ private fun App(store: SecureStore) {
                         onQuality = { push(Screen.Quality) },
                         onPhone = { push(Screen.Phone) },
                         onInfo = { push(Screen.Info) },
+                        update = update,
+                        onUpdate = { push(Screen.Update) },
                     )
                     Screen.Cameras -> CamerasScreen(settings, store, onBack = ::pop)
                     Screen.Account -> AccountScreen(settings, store, onBack = ::pop)
                     Screen.City -> CitySettingsScreen(settings, store, onBack = ::pop)
-                    Screen.Info -> InfoScreen(onBack = ::pop)
+                    Screen.Info -> InfoScreen(onBack = ::pop, onUpdateChecked = { update = it })
+                    Screen.Update -> update?.let { UpdateScreen(it, onBack = ::pop) }
                     Screen.Quality -> QualityScreen(settings, store, onBack = ::pop)
                     Screen.Phone -> PhoneSetupScreen(store, onBack = ::pop)
                     is Screen.Fullscreen -> Unit

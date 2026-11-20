@@ -32,6 +32,19 @@ import androidx.compose.ui.unit.sp
 import it.casa.pannello.data.Camera
 import it.casa.pannello.data.CameraType
 import it.casa.pannello.data.SecureStore
+import it.casa.pannello.update.InstallResult
+import it.casa.pannello.update.UpdateChecker
+import it.casa.pannello.update.UpdateInfo
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.draw.clip
+import java.io.File
 import it.casa.pannello.data.ThumbQuality
 import it.casa.pannello.data.Settings
 import it.casa.pannello.data.isValidHost
@@ -80,10 +93,13 @@ fun MenuScreen(
     onQuality: () -> Unit,
     onPhone: () -> Unit,
     onInfo: () -> Unit,
+    update: UpdateInfo? = null,
+    onUpdate: () -> Unit = {},
 ) {
     BackHandler(onBack = onBack)
     val first = remember { FocusRequester() }
-    val items = listOf(
+    val items = listOfNotNull(
+        update?.let { Triple("⬆️", "Aggiornamento disponibile · ${it.name}", onUpdate) },
         Triple("📷", "Telecamere", onCameras),
         Triple("👤", "Account", onAccount),
         Triple("🌤️", "Meteo", onWeather),
@@ -138,22 +154,106 @@ fun CitySettingsScreen(settings: Settings, store: SecureStore, onBack: () -> Uni
 }
 
 @Composable
-fun InfoScreen(onBack: () -> Unit) {
+fun InfoScreen(onBack: () -> Unit, onUpdateChecked: (UpdateInfo?) -> Unit = {}) {
     BackHandler(onBack = onBack)
     val first = remember { FocusRequester() }
     val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
     val version = remember { runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: "?" }
+    var result by remember { mutableStateOf<String?>(null) }
+    var checking by remember { mutableStateOf(false) }
     Page("Info versione", first, onBack) {
         GlassPanel(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(26.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Txt("Il mio pannello", 32.sp, weight = FontWeight.Bold, ellipsis = false)
                 Txt("Versione $version", 26.sp, ellipsis = false)
                 Txt("Tutto resta in rete di casa. Nessuna immagine salvata, nessuna telemetria.", 20.sp, color = Sage.InkSoft, ellipsis = false)
-                Txt("Per aggiornare: riapri il link in Downloader.", 20.sp, color = Sage.InkSoft, ellipsis = false)
+                Txt("Gli aggiornamenti si cercano da soli una volta al giorno.", 20.sp, color = Sage.InkSoft, ellipsis = false)
             }
         }
-        // Un elemento selezionabile in cima serve al telecomando: il pulsante Indietro sotto prende il focus.
-        Spacer(Modifier.height(0.dp))
+        GlassButton(
+            if (checking) "Controllo in corso…" else "Cerca aggiornamenti ora",
+            {
+                if (!checking) scope.launch {
+                    checking = true
+                    UpdateChecker.checkNow(ctx)
+                        .onSuccess { onUpdateChecked(it); result = if (it != null) "Disponibile la versione ${it.name}: la trovi in cima al menu." else "Sei aggiornato ✓" }
+                        .onFailure { result = "Controllo non riuscito. Verifica la rete e riprova." }
+                    checking = false
+                }
+            },
+            Modifier.fillMaxWidth(), primary = true, focusRequester = first,
+        )
+        result?.let { Txt(it, 22.sp, weight = FontWeight.SemiBold, ellipsis = false) }
+    }
+}
+
+/** Scarica l'ultima Release e apre l'installazione di Android. Si avvia da sola all'apertura. */
+@Composable
+fun UpdateScreen(info: UpdateInfo, onBack: () -> Unit) {
+    BackHandler(onBack = onBack)
+    val first = remember { FocusRequester() }
+    val ctx = LocalContext.current
+    var progress by remember { mutableIntStateOf(0) }
+    var file by remember { mutableStateOf<File?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var note by remember { mutableStateOf<String?>(null) }
+    var attempt by remember { mutableIntStateOf(0) }
+
+    fun install(f: File) {
+        note = when (UpdateChecker.install(ctx, f)) {
+            InstallResult.STARTED -> "Conferma l'installazione di Android. L'app si riaprirà aggiornata."
+            InstallResult.NEEDS_PERMISSION -> "Consenti a «Il mio pannello» di installare app, poi torna qui e premi «Installa»."
+            InstallResult.FAILED -> "Non riesco ad aprire l'installazione. Riprova."
+        }
+    }
+
+    LaunchedEffect(attempt) {
+        file = null; error = null; note = null; progress = 0
+        try {
+            val f = UpdateChecker.download(ctx, info) { progress = it }
+            file = f
+            install(f)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            error = "Download non riuscito. Controlla la rete e riprova."
+        }
+    }
+
+    Page("Aggiornamento", first, onBack) {
+        GlassPanel(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(26.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Txt("Nuova versione ${info.name}", 32.sp, weight = FontWeight.Bold, ellipsis = false)
+                Box(Modifier.fillMaxWidth().height(16.dp).clip(RoundedCornerShape(50)).background(Sage.Pale)) {
+                    Box(Modifier.fillMaxHeight().fillMaxWidth(if (file != null) 1f else progress / 100f).background(Sage.Dark))
+                }
+                Txt(
+                    error ?: when {
+                        file != null -> "Download completato ✓"
+                        else -> "Download in corso… $progress%"
+                    },
+                    22.sp, color = if (error != null) Sage.Alert else Sage.Ink, weight = FontWeight.SemiBold, ellipsis = false,
+                )
+                note?.let { Txt(it, 20.sp, color = Sage.InkSoft, ellipsis = false) }
+            }
+        }
+        // Il pulsante c'è sempre (così il focus non si perde): cambia ruolo secondo lo stato.
+        GlassButton(
+            when {
+                error != null -> "Riprova"
+                file != null -> "Installa"
+                else -> "Scarico… $progress%"
+            },
+            {
+                val f = file
+                when {
+                    error != null -> attempt++
+                    f != null -> install(f)
+                }
+            },
+            Modifier.fillMaxWidth(), primary = true, focusRequester = first,
+        )
     }
 }
 

@@ -69,6 +69,7 @@ fun HomeScreen(
     onOpenSettings: () -> Unit,
     onOpenWeather: () -> Unit,
     onThumbTrouble: () -> Unit,
+    updateAvailable: Boolean = false,
 ) {
     val defaultFocus = remember { FocusRequester() }
     val creds = settings.credentials
@@ -85,7 +86,11 @@ fun HomeScreen(
                     focusRequester = if (cameras.isEmpty()) defaultFocus else null,
                 )
                 Spacer(Modifier.width(20.dp))
-                GlassIconButton(onOpenSettings) { GearIcon() }
+                Box {
+                    GlassIconButton(onOpenSettings) { GearIcon() }
+                    // Pallino: c'è un aggiornamento (si scarica dal menu).
+                    if (updateAvailable) Box(Modifier.align(Alignment.TopEnd).size(20.dp).clip(CircleShape).background(Sage.Alert))
+                }
             }
             Spacer(Modifier.height(14.dp))
 
