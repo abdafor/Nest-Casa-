@@ -256,7 +256,7 @@ fun GlassIconButton(
 fun GearIcon(modifier: Modifier = Modifier, color: Color = Sage.Deeper, size: Dp = 36.dp) {
     Canvas(modifier.size(size)) {
         val c = center
-        val r = size.minDimension / 2f
+        val r = this.size.minDimension / 2f
         val toothW = r * 0.36f
         repeat(8) { i ->
             rotate(i * 45f, pivot = c) {

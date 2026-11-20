@@ -104,17 +104,21 @@ fun HomeScreen(
             CompositionLocalProvider(LocalFocusStyle provides FocusStyle.Home) {
                 Column(Modifier.fillMaxSize().padding(horizontal = margin, vertical = d(36f))) {
                     // ---- riga in alto: ora | meteo | ingranaggio ----
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-                        Clock(k, pal, Modifier.weight(1f))
-                        WeatherBlock(
-                            weather, pal, k, onOpenWeather,
-                            focusRequester = if (cameras.isEmpty()) defaultFocus else null,
-                        )
-                        Spacer(Modifier.width(d(28f)))
-                        Box(Modifier.padding(top = d(12f))) {
-                            GlassIconButton(onOpenSettings, size = d(96f)) { GearIcon(size = d(44f)) }
+                    Box(Modifier.fillMaxWidth()) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                            Clock(k, pal, Modifier.weight(1f))
+                            Box(Modifier.padding(top = d(64f))) {
+                                WeatherBlock(
+                                    weather, pal, k, onOpenWeather,
+                                    focusRequester = if (cameras.isEmpty()) defaultFocus else null,
+                                )
+                            }
+                        }
+                        // Ingranaggio tondo in vetro, piccolo, nell'angolo in alto a destra.
+                        Box(Modifier.align(Alignment.TopEnd).padding(end = d(30f), top = d(4f))) {
+                            GlassIconButton(onOpenSettings, size = d(80f)) { GearIcon(size = d(38f)) }
                             if (updateAvailable) {   // pallino: c'è un aggiornamento (si scarica dal menu)
-                                Box(Modifier.align(Alignment.TopEnd).size(d(24f)).clip(CircleShape).background(Sage.Alert))
+                                Box(Modifier.align(Alignment.TopEnd).size(d(22f)).clip(CircleShape).background(Sage.Alert))
                             }
                         }
                     }
@@ -268,16 +272,16 @@ private fun WeatherBlock(
                         )
                     }
                     Txt("${w.description} · ${w.place}", (40f * k).sp, color = pal.soft, weight = FontWeight.Medium, ellipsis = false)
-                    Spacer(Modifier.height((18f * k).dp))
+                    Spacer(Modifier.height((14f * k).dp))
                     // Solo "Prossimi giorni": compatto, 5 colonne (giorno, icona, min/max).
-                    Txt("Prossimi giorni", (26f * k).sp, color = pal.soft, weight = FontWeight.Medium, ellipsis = false)
+                    Txt("PROSSIMI GIORNI", (22f * k).sp, color = pal.soft, weight = FontWeight.Medium, ellipsis = false, wrap = false, letterSpacing = (3f * k).sp)
                     Spacer(Modifier.height((6f * k).dp))
                     Row(horizontalArrangement = Arrangement.spacedBy((30f * k).dp)) {
                         w.days.forEach { day ->
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Txt(day.label.substringBefore(' '), (28f * k).sp, color = pal.text, weight = FontWeight.SemiBold, maxLines = 1, ellipsis = false)
-                                WeatherIcon(day.icon, (68f * k).dp)
-                                Txt("${day.min}°/${day.max}°", (26f * k).sp, color = pal.soft, maxLines = 1, ellipsis = false, wrap = false)
+                                WeatherIcon(day.icon, (60f * k).dp)
+                                Txt("${day.min}° / ${day.max}°", (26f * k).sp, color = pal.soft, maxLines = 1, ellipsis = false, wrap = false)
                             }
                         }
                     }
