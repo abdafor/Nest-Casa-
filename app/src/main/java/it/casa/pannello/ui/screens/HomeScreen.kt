@@ -2,6 +2,7 @@ package it.casa.pannello.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -20,7 +21,6 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -40,12 +40,14 @@ import it.casa.pannello.camera.StreamStatus
 import it.casa.pannello.data.Camera
 import it.casa.pannello.data.Credentials
 import it.casa.pannello.data.Settings
-import it.casa.pannello.ui.theme.Corners
-import it.casa.pannello.ui.theme.GlassButton
+import it.casa.pannello.ui.theme.FocusGuard
+import it.casa.pannello.ui.theme.GearIcon
 import it.casa.pannello.ui.theme.GlassFocusable
+import it.casa.pannello.ui.theme.GlassIconButton
 import it.casa.pannello.ui.theme.GlassPanel
 import it.casa.pannello.ui.theme.Sage
 import it.casa.pannello.ui.theme.Txt
+import it.casa.pannello.ui.weather.WeatherCard
 import it.casa.pannello.weather.WeatherUi
 import kotlinx.coroutines.delay
 import java.time.ZoneId
@@ -55,76 +57,70 @@ import java.util.Locale
 
 private val ROME: ZoneId = ZoneId.of("Europe/Rome")
 
-/** Home: orologio, meteo, impostazioni e griglia delle camere in diretta. */
+/**
+ * Home: orologio, scheda meteo (OK = schermo intero), ingranaggio in alto a destra
+ * e griglia delle camere in diretta. Ordine del telecomando: camere → meteo → ingranaggio.
+ */
 @Composable
 fun HomeScreen(
     settings: Settings,
     weather: WeatherUi,
     onOpenCamera: (Camera) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenWeather: () -> Unit,
 ) {
-    val firstFocus = remember { FocusRequester() }
+    val defaultFocus = remember { FocusRequester() }
     val creds = settings.credentials
     val cameras = settings.cameras
 
-    // Margini di sicurezza (overscan): circa 5% ai lati.
-    Column(Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 24.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            ClockBlock(Modifier.weight(1f))
-            WeatherCard(weather)
-            Spacer(Modifier.width(20.dp))
-            GlassButton("⚙  Impostazioni", onOpenSettings)
-        }
-        Spacer(Modifier.height(18.dp))
+    FocusGuard(defaultFocus, Modifier.fillMaxSize()) {
+        // Margini di sicurezza (overscan): circa 5% ai lati.
+        Column(Modifier.fillMaxSize().padding(horizontal = 36.dp, vertical = 24.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                ClockBlock(Modifier.weight(1f))
+                Spacer(Modifier.width(16.dp))
+                WeatherCard(
+                    weather, onOpenWeather, Modifier.weight(1.5f),
+                    focusRequester = if (cameras.isEmpty()) defaultFocus else null,
+                )
+                Spacer(Modifier.width(20.dp))
+                GlassIconButton(onOpenSettings) { GearIcon() }
+            }
+            Spacer(Modifier.height(14.dp))
 
-        if (!creds.isComplete) {
-            GlassFocusable(onClick = onOpenSettings, Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
-                Row(Modifier.padding(horizontal = 28.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Txt("🔑", 30.sp)
-                    Spacer(Modifier.width(16.dp))
-                    Txt("Per vedere le camere imposta utente e password (premi OK)", 24.sp, weight = FontWeight.SemiBold)
+            if (cameras.isEmpty()) {
+                GlassPanel(Modifier.fillMaxWidth()) {
+                    Txt("Nessuna camera. Aggiungila da ⚙ › Telecamere.", 26.sp, Modifier.padding(32.dp), ellipsis = false)
+                }
+            } else {
+                // 1 camera = 1 colonna, 2-4 = 2 colonne, oltre = 3. Oltre 2 righe si scorre col telecomando.
+                val columns = when {
+                    cameras.size <= 1 -> 1
+                    cameras.size <= 4 -> 2
+                    else -> 3
+                }
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(columns),
+                    horizontalArrangement = Arrangement.spacedBy(28.dp),
+                    verticalArrangement = Arrangement.spacedBy(28.dp),
+                    contentPadding = PaddingValues(22.dp),   // spazio per l'ingrandimento del focus
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    itemsIndexed(cameras, key = { _, c -> c.id }) { index, cam ->
+                        CameraTile(
+                            camera = cam,
+                            creds = creds,
+                            focusRequester = if (index == 0) defaultFocus else null,
+                            onClick = { onOpenCamera(cam) },
+                        )
+                    }
                 }
             }
         }
-
-        if (cameras.isEmpty()) {
-            GlassPanel(Modifier.fillMaxWidth()) {
-                Txt("Nessuna camera. Aggiungila da Impostazioni.", 26.sp, Modifier.padding(32.dp))
-            }
-        } else {
-            // 1 camera = 1 colonna, 2 e 4 = 2 colonne, oltre = 3. Più di 2 righe scorrono col telecomando.
-            val columns = when {
-                cameras.size <= 1 -> 1
-                cameras.size <= 4 -> 2
-                else -> 3
-            }
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(columns),
-                horizontalArrangement = Arrangement.spacedBy(24.dp),
-                verticalArrangement = Arrangement.spacedBy(24.dp),
-                contentPadding = PaddingValues(12.dp),
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                itemsIndexed(cameras, key = { _, c -> c.id }) { index, cam ->
-                    CameraTile(
-                        camera = cam,
-                        creds = creds,
-                        focusRequester = if (index == 0) firstFocus else null,
-                        onClick = { onOpenCamera(cam) },
-                    )
-                }
-            }
-        }
-    }
-
-    // Parte col focus sulla prima camera (se c'è).
-    LaunchedEffect(cameras.isNotEmpty()) {
-        delay(250)
-        if (cameras.isNotEmpty()) runCatching { firstFocus.requestFocus() }
     }
 }
 
-/** Una miniatura: video a bassa qualità dentro una cornice di vetro. */
+/** Una miniatura: video a bassa qualità dentro una cornice di vetro. Senza credenziali: icona a chiave. */
 @Composable
 private fun CameraTile(camera: Camera, creds: Credentials, focusRequester: FocusRequester?, onClick: () -> Unit) {
     var status by remember { mutableStateOf(StreamStatus.CONNECTING) }
@@ -158,7 +154,10 @@ private fun CameraTile(camera: Camera, creds: Credentials, focusRequester: Focus
     }
 }
 
-/** Ora grande e data in italiano, fuso Europe/Rome. */
+/**
+ * Ora grande e data completa in italiano, fuso Europe/Rome.
+ * Le dimensioni si adattano alla larghezza disponibile e il testo non viene mai tagliato.
+ */
 @Composable
 private fun ClockBlock(modifier: Modifier = Modifier) {
     val now by produceState(ZonedDateTime.now(ROME)) {
@@ -170,34 +169,13 @@ private fun ClockBlock(modifier: Modifier = Modifier) {
     val time = now.format(DateTimeFormatter.ofPattern("HH:mm", Locale.ITALIAN))
     val date = now.format(DateTimeFormatter.ofPattern("EEEE d MMMM yyyy", Locale.ITALIAN))
         .replaceFirstChar { it.titlecase(Locale.ITALIAN) }
-    Column(modifier) {
-        Txt(time, 76.sp, weight = FontWeight.Bold, maxLines = 1)
-        Txt(date, 26.sp, color = Sage.InkSoft, weight = FontWeight.Medium, maxLines = 1)
-    }
-}
-
-@Composable
-private fun WeatherCard(weather: WeatherUi) {
-    GlassPanel(Modifier.height(112.dp), Corners.Card) {
-        Row(Modifier.padding(horizontal = 26.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            when (weather) {
-                WeatherUi.Loading -> Txt("Meteo…", 24.sp, color = Sage.InkSoft)
-                WeatherUi.Error -> Txt("Meteo non disponibile", 22.sp, color = Sage.InkSoft)
-                is WeatherUi.Ok -> {
-                    val w = weather.data
-                    Txt(w.emoji, 50.sp)
-                    Spacer(Modifier.width(14.dp))
-                    Column {
-                        Row(verticalAlignment = Alignment.Bottom) {
-                            Txt("${w.temp}°", 44.sp, weight = FontWeight.Bold, maxLines = 1)
-                            Spacer(Modifier.width(12.dp))
-                            Txt(w.place, 22.sp, color = Sage.InkSoft, weight = FontWeight.Medium, maxLines = 1, modifier = Modifier.padding(bottom = 6.dp))
-                        }
-                        val rain = w.rainPercent?.let { " · pioggia $it%" } ?: ""
-                        Txt("${w.description} · ${w.min}°/${w.max}°$rain", 20.sp, color = Sage.InkSoft, maxLines = 1)
-                    }
-                }
-            }
+    BoxWithConstraints(modifier) {
+        val w = maxWidth.value
+        val timeSize = (w / 3.4f).coerceIn(48f, 90f).sp
+        val dateSize = (w / 15f).coerceIn(17f, 30f).sp
+        Column {
+            Txt(time, timeSize, weight = FontWeight.Bold, maxLines = 1, ellipsis = false, wrap = false)
+            Txt(date, dateSize, color = Sage.InkSoft, weight = FontWeight.Medium, ellipsis = false)
         }
     }
 }

@@ -3,6 +3,7 @@ package it.casa.pannello.ui.theme
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -10,27 +11,41 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -50,6 +65,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
+import kotlinx.coroutines.delay
 
 /** Angoli molto arrotondati ovunque: li cambi qui. */
 object Corners {
@@ -58,25 +74,37 @@ object Corners {
     val Pill = RoundedCornerShape(50)
 }
 
+/** Vero quando l'elemento che contiene il testo ha il focus del telecomando. */
+val LocalFocused = compositionLocalOf { false }
+
 /**
  * Effetto vetro smerigliato bianco: gradiente bianco semi-trasparente, bordo chiaro sottile
  * e ombra morbida. (Compose non sa sfocare ciò che sta DIETRO una card, quindi la sfocatura
  * è simulata dallo sfondo a sfumature + trasparenza.)
- * Con [focused] = true: bordo e alone salvia ben visibili.
+ *
+ * [focus] va da 0 (non selezionato) a 1 (selezionato). Con focus alto: bordo spesso verde
+ * salvia SCURO (5 dp), alone/ombra salvia e sfondo quasi opaco, ben visibili da 3 metri.
  */
-fun Modifier.glass(shape: Shape = Corners.Card, focused: Boolean = false): Modifier = this
+fun Modifier.glass(shape: Shape = Corners.Card, focus: Float = 0f): Modifier = this
     .shadow(
-        elevation = if (focused) 30.dp else 14.dp,
+        elevation = (12f + 26f * focus).dp,
         shape = shape,
         clip = false,
-        ambientColor = if (focused) Sage.Base else Sage.Dark.copy(alpha = 0.20f),
-        spotColor = if (focused) Sage.Base else Sage.Dark.copy(alpha = 0.32f),
+        ambientColor = lerp(Sage.Dark.copy(alpha = 0.18f), Sage.Deeper, focus),
+        spotColor = lerp(Sage.Dark.copy(alpha = 0.30f), Sage.Deeper, focus),
     )
     .clip(shape)
-    .background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.80f), Color.White.copy(alpha = 0.50f))))
+    .background(
+        Brush.verticalGradient(
+            listOf(
+                Color.White.copy(alpha = 0.78f + 0.20f * focus),
+                Color.White.copy(alpha = 0.48f + 0.40f * focus),
+            )
+        )
+    )
     .border(
-        width = if (focused) 4.dp else 1.dp,
-        brush = if (focused) SolidColor(Sage.Base)
+        width = (1f + 4f * focus).dp,
+        brush = if (focus > 0.02f) SolidColor(lerp(Color.White.copy(alpha = 0.9f), Sage.Deeper, focus))
         else Brush.linearGradient(listOf(Color.White.copy(alpha = 0.95f), Color.White.copy(alpha = 0.35f))),
         shape = shape,
     )
@@ -88,8 +116,9 @@ fun GlassPanel(modifier: Modifier = Modifier, shape: Shape = Corners.Card, conte
 }
 
 /**
- * Card in vetro selezionabile col telecomando: quando ha il focus si ingrandisce un po'
- * e si accende di salvia.
+ * Card in vetro selezionabile col telecomando. Quando ha il focus: si ingrandisce dell'8%
+ * (transizione morbida), bordo spesso salvia scuro + alone, sfondo più opaco, testo più scuro.
+ * Quando NON ce l'ha: è leggermente attenuata da un velo chiaro.
  */
 @Composable
 fun GlassFocusable(
@@ -100,18 +129,45 @@ fun GlassFocusable(
     content: @Composable BoxScope.(focused: Boolean) -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(if (focused) 1.06f else 1f, tween(220), label = "scala")
+    val f by animateFloatAsState(if (focused) 1f else 0f, tween(240), label = "focus")
     Box(
         modifier
             .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .graphicsLayer { scaleX = 1f + 0.08f * f; scaleY = 1f + 0.08f * f }
             .onFocusChanged { focused = it.isFocused }
-            .glass(shape, focused)
+            .glass(shape, f)
+            .veil(1f - f)
             .clickable(onClick = onClick)
-    ) { content(focused) }
+    ) {
+        CompositionLocalProvider(LocalFocused provides focused) { content(focused) }
+    }
 }
 
-/** Testo con valori di default comodi da 3 metri. */
+/** Velo chiaro che attenua gli elementi non selezionati. */
+private fun Modifier.veil(amount: Float): Modifier = drawWithContent {
+    drawContent()
+    if (amount > 0.01f) drawRect(Color.White.copy(alpha = 0.18f * amount))
+}
+
+/**
+ * Guardia del focus: se per qualsiasi motivo nessun elemento della schermata ha il focus,
+ * lo riporta su [default]. Così col telecomando non ci si "perde" mai.
+ */
+@Composable
+fun FocusGuard(default: FocusRequester, modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
+    var hasFocus by remember { mutableStateOf(false) }
+    val current by rememberUpdatedState(hasFocus)
+    LaunchedEffect(Unit) {
+        delay(120)
+        while (true) {
+            if (!current) runCatching { default.requestFocus() }
+            delay(300)
+        }
+    }
+    Box(modifier.onFocusChanged { hasFocus = it.hasFocus }, content = content)
+}
+
+/** Testo con valori di default comodi da 3 metri. Con [ellipsis] = false non mette mai i puntini. */
 @Composable
 fun Txt(
     text: String,
@@ -121,10 +177,19 @@ fun Txt(
     weight: FontWeight = FontWeight.Normal,
     maxLines: Int = Int.MAX_VALUE,
     align: TextAlign? = null,
+    ellipsis: Boolean = true,
+    wrap: Boolean = true,
 ) {
+    val focused = LocalFocused.current
+    val c = when {
+        focused && color == Sage.Ink -> Sage.InkDeep
+        focused && color == Sage.InkSoft -> Sage.Ink
+        else -> color
+    }
     Text(
-        text = text, modifier = modifier, color = color, fontSize = size, fontWeight = weight,
-        maxLines = maxLines, overflow = TextOverflow.Ellipsis, textAlign = align,
+        text = text, modifier = modifier, color = c, fontSize = size, fontWeight = weight,
+        maxLines = maxLines, softWrap = wrap,
+        overflow = if (ellipsis) TextOverflow.Ellipsis else TextOverflow.Visible, textAlign = align,
     )
 }
 
@@ -141,11 +206,47 @@ fun GlassButton(
     GlassFocusable(onClick, modifier, Corners.Pill, focusRequester) { focused ->
         Box(
             Modifier
-                .background(if (primary) Sage.Base.copy(alpha = if (focused) 0.85f else 0.60f) else Color.Transparent)
+                .background(if (primary) Sage.Base.copy(alpha = if (focused) 0.80f else 0.55f) else Color.Transparent)
                 .padding(padding)
         ) {
             Txt(text, 22.sp, color = Sage.Ink, weight = FontWeight.SemiBold, maxLines = 1, align = TextAlign.Center)
         }
+    }
+}
+
+/** Pulsante tondo in vetro (es. ingranaggio). */
+@Composable
+fun GlassIconButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    size: Dp = 68.dp,
+    focusRequester: FocusRequester? = null,
+    content: @Composable BoxScope.() -> Unit,
+) {
+    GlassFocusable(onClick, modifier.size(size), CircleShape, focusRequester) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center, content = content)
+    }
+}
+
+/** Icona a ingranaggio disegnata (nessuna immagine esterna). */
+@Composable
+fun GearIcon(modifier: Modifier = Modifier, color: Color = Sage.Deeper) {
+    Canvas(modifier.size(36.dp)) {
+        val c = center
+        val r = size.minDimension / 2f
+        val toothW = r * 0.36f
+        repeat(8) { i ->
+            rotate(i * 45f, pivot = c) {
+                drawRoundRect(
+                    color = color,
+                    topLeft = Offset(c.x - toothW / 2f, c.y - r),
+                    size = Size(toothW, r * 0.46f),
+                    cornerRadius = CornerRadius(toothW * 0.3f),
+                )
+            }
+        }
+        drawCircle(color, radius = r * 0.76f, center = c)
+        drawCircle(Color.White.copy(alpha = 0.92f), radius = r * 0.30f, center = c)
     }
 }
 
@@ -161,28 +262,34 @@ fun GlassField(
     keyboardType: KeyboardType = KeyboardType.Text,
     imeAction: ImeAction = ImeAction.Next,
     labelSize: TextUnit = 18.sp,
+    focusRequester: FocusRequester? = null,
 ) {
     var focused by remember { mutableStateOf(false) }
+    val f by animateFloatAsState(if (focused) 1f else 0f, tween(240), label = "focusCampo")
     val keyboard = LocalSoftwareKeyboardController.current
-    val ring by animateColorAsState(if (focused) Sage.Base else Color.Transparent, tween(200), label = "anello")
     Column(modifier) {
-        Txt(label, labelSize, color = Sage.InkSoft, weight = FontWeight.Medium, modifier = Modifier.padding(start = 8.dp, bottom = 4.dp))
+        Txt(
+            label, labelSize, color = if (focused) Sage.Ink else Sage.InkSoft, weight = FontWeight.Medium,
+            modifier = Modifier.padding(start = 8.dp, bottom = 4.dp),
+        )
         Box(
             Modifier
                 .fillMaxWidth()
-                .glass(Corners.Inner, focused)
-                .border(if (focused) 0.dp else 0.dp, ring, Corners.Inner)
+                .graphicsLayer { scaleX = 1f + 0.03f * f; scaleY = 1f + 0.03f * f }
+                .glass(Corners.Inner, f)
+                .veil(1f - f)
         ) {
             BasicTextField(
                 value = value,
                 onValueChange = onValueChange,
                 singleLine = true,
-                textStyle = TextStyle(color = Sage.Ink, fontSize = 24.sp, fontWeight = FontWeight.Medium),
+                textStyle = TextStyle(color = Sage.InkDeep, fontSize = 24.sp, fontWeight = FontWeight.Medium),
                 cursorBrush = SolidColor(Sage.Deeper),
                 visualTransformation = if (password && !reveal) PasswordVisualTransformation() else VisualTransformation.None,
                 keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = imeAction),
                 modifier = Modifier
                     .fillMaxWidth()
+                    .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
                     .padding(horizontal = 22.dp, vertical = 14.dp)
                     .onFocusChanged { focused = it.isFocused }
                     .onPreviewKeyEvent { ev ->

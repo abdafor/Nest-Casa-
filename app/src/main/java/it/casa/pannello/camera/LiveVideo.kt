@@ -7,6 +7,7 @@ import android.view.ViewGroup
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -95,7 +96,9 @@ fun LiveVideo(
             StreamStatus.LIVE -> Unit
             StreamStatus.CONNECTING -> StatusPill("Connessione…", Sage.InkSoft, Modifier.align(Alignment.Center))
             StreamStatus.OFFLINE -> StatusPill("Non raggiungibile · riprovo…", Sage.Alert, Modifier.align(Alignment.Center))
-            StreamStatus.NO_CREDENTIALS -> StatusPill("Imposta utente e password", Sage.Alert, Modifier.align(Alignment.Center))
+            StreamStatus.NO_CREDENTIALS -> GlassPanel(Modifier.align(Alignment.TopEnd).padding(14.dp), CircleShape) {
+                Txt("🔑", 26.sp, Modifier.padding(12.dp), ellipsis = false, wrap = false)
+            }
         }
     }
 }

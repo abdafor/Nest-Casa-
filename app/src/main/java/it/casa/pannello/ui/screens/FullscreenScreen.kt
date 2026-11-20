@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -79,6 +80,7 @@ fun FullscreenScreen(camera: Camera, creds: Credentials, onBack: () -> Unit) {
             .fillMaxSize()
             .background(Color.Black)
             .focusRequester(focus)
+            .onFocusChanged { if (!it.isFocused) scope.launch { delay(50); runCatching { focus.requestFocus() } } }
             .focusable()
             .onPreviewKeyEvent { ev ->
                 val dir = when (ev.key) {
@@ -120,10 +122,13 @@ fun FullscreenScreen(camera: Camera, creds: Credentials, onBack: () -> Unit) {
         ) {
             GlassPanel(shape = Corners.Card) {
                 Column(Modifier.padding(horizontal = 26.dp, vertical = 14.dp)) {
-                    Txt(camera.name, 30.sp, weight = FontWeight.Bold, maxLines = 1)
-                    val hint = if (camera.type.hasPtz) "Frecce: muovi la camera  ·  Indietro: torna alla home"
-                    else "Indietro: torna alla home"
-                    Txt(hint, 20.sp, color = Sage.InkSoft, maxLines = 1)
+                    Txt(camera.name, 30.sp, weight = FontWeight.Bold, ellipsis = false)
+                    val hint = when {
+                        !creds.isComplete -> "🔑 Imposta utente e password da ⚙ › Account"
+                        camera.type.hasPtz -> "Frecce: muovi la camera  ·  Indietro: torna alla home"
+                        else -> "Indietro: torna alla home"
+                    }
+                    Txt(hint, 20.sp, color = Sage.InkSoft, ellipsis = false)
                 }
             }
         }

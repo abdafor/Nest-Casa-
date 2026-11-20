@@ -25,6 +25,7 @@ object Sage {
     val Deeper = Color(0xFF4B6343)    // verde profondo (icone, cursori)
     val Ink = Color(0xFF243329)       // testo principale (grigio-verde scuro)
     val InkSoft = Color(0xFF475C4D)   // testo secondario, ancora ben leggibile
+    val InkDeep = Color(0xFF0F1A13)   // testo sugli elementi selezionati (più scuro)
     val Alert = Color(0xFFB3541E)     // avvisi (camera non raggiungibile)
 }
 

@@ -18,7 +18,12 @@ import it.casa.pannello.data.SecureStore
 import it.casa.pannello.ui.screens.FullscreenScreen
 import it.casa.pannello.ui.screens.HomeScreen
 import it.casa.pannello.ui.screens.PhoneSetupScreen
-import it.casa.pannello.ui.screens.SettingsScreen
+import it.casa.pannello.ui.screens.AccountScreen
+import it.casa.pannello.ui.screens.CamerasScreen
+import it.casa.pannello.ui.screens.CitySettingsScreen
+import it.casa.pannello.ui.screens.InfoScreen
+import it.casa.pannello.ui.screens.MenuScreen
+import it.casa.pannello.ui.screens.WeatherScreen
 import it.casa.pannello.ui.theme.PanelBackground
 import it.casa.pannello.ui.theme.PanelTheme
 import it.casa.pannello.weather.WeatherClient
@@ -29,7 +34,12 @@ import kotlinx.coroutines.delay
 sealed interface Screen {
     data object Home : Screen
     data class Fullscreen(val cameraId: String) : Screen
-    data object Settings : Screen
+    data object Weather : Screen
+    data object Menu : Screen
+    data object Cameras : Screen
+    data object Account : Screen
+    data object City : Screen
+    data object Info : Screen
     data object Phone : Screen
 }
 
@@ -62,10 +72,24 @@ private fun App(store: SecureStore) {
                     Screen.Home -> HomeScreen(
                         settings = settings,
                         weather = weather,
-                        onOpenCamera = { push(Screen.Fullscreen(it.id)) },
-                        onOpenSettings = { push(Screen.Settings) },
+                        // Senza utente/password si apre direttamente la pagina Account.
+                        onOpenCamera = { push(if (settings.credentials.isComplete) Screen.Fullscreen(it.id) else Screen.Account) },
+                        onOpenSettings = { push(Screen.Menu) },
+                        onOpenWeather = { push(Screen.Weather) },
                     )
-                    Screen.Settings -> SettingsScreen(settings, store, onBack = ::pop, onPhone = { push(Screen.Phone) })
+                    Screen.Weather -> WeatherScreen(weather, onBack = ::pop)
+                    Screen.Menu -> MenuScreen(
+                        onBack = ::pop,
+                        onCameras = { push(Screen.Cameras) },
+                        onAccount = { push(Screen.Account) },
+                        onWeather = { push(Screen.City) },
+                        onPhone = { push(Screen.Phone) },
+                        onInfo = { push(Screen.Info) },
+                    )
+                    Screen.Cameras -> CamerasScreen(settings, store, onBack = ::pop)
+                    Screen.Account -> AccountScreen(settings, store, onBack = ::pop)
+                    Screen.City -> CitySettingsScreen(settings, store, onBack = ::pop)
+                    Screen.Info -> InfoScreen(onBack = ::pop)
                     Screen.Phone -> PhoneSetupScreen(store, onBack = ::pop)
                     is Screen.Fullscreen -> Unit
                 }

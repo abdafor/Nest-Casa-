@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
@@ -30,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import it.casa.pannello.data.SecureStore
 import it.casa.pannello.server.PhoneSettingsServer
 import it.casa.pannello.server.qrBitmap
+import it.casa.pannello.ui.theme.FocusGuard
 import it.casa.pannello.ui.theme.GlassButton
 import it.casa.pannello.ui.theme.GlassPanel
 import it.casa.pannello.ui.theme.Sage
@@ -43,6 +45,7 @@ import it.casa.pannello.ui.theme.Txt
 @Composable
 fun PhoneSetupScreen(store: SecureStore, onBack: () -> Unit) {
     BackHandler(onBack = onBack)
+    val closeFocus = remember { FocusRequester() }
     var url by remember { mutableStateOf<String?>(null) }
     var started by remember { mutableStateOf(false) }
     var saved by remember { mutableStateOf(false) }
@@ -54,6 +57,7 @@ fun PhoneSetupScreen(store: SecureStore, onBack: () -> Unit) {
         onDispose { server.stop() }   // spegne sempre il server quando esci
     }
 
+    FocusGuard(closeFocus, Modifier.fillMaxSize()) {
     Column(
         Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 28.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -89,6 +93,7 @@ fun PhoneSetupScreen(store: SecureStore, onBack: () -> Unit) {
             }
         }
         Spacer(Modifier.height(8.dp))
-        GlassButton(if (saved) "‹  Fatto" else "Chiudi e spegni il server", onBack, primary = saved)
+        GlassButton(if (saved) "‹  Fatto" else "Chiudi e spegni il server", onBack, primary = saved, focusRequester = closeFocus)
+    }
     }
 }

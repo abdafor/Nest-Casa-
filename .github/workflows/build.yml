@@ -82,12 +82,12 @@ jobs:
       - name: Pubblica la Release
         if: steps.sign.outputs.signed == 'true'
         run: |
-          VERSION="1.0.${{ github.run_number }}"
+          VERSION="1.1.${{ github.run_number }}"
           gh release create "v$VERSION" il-mio-pannello.apk \
             --target "$GITHUB_SHA" --latest \
             --title "Il mio pannello $VERSION" \
             --notes "Build automatica del commit ${GITHUB_SHA::7}."
           # Tiene solo le ultime 5 versioni.
           gh release list --limit 100 --json tagName --jq '.[].tagName' \
-            | grep -E '^v1\.0\.' | tail -n +6 \
+            | grep -E "^v1\." | tail -n +6 \
             | xargs -r -I{} gh release delete {} --cleanup-tag --yes
