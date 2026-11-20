@@ -61,6 +61,18 @@ jobs:
       - name: Rinomina l'APK
         run: cp app/build/outputs/apk/release/app-release*.apk il-mio-pannello.apk
 
+      # Controlli ufficiali sull'APK: firma (v1/v2/v3), certificato, SDK minimo/target, ABI.
+      - name: Verifica APK (apksigner + aapt)
+        run: |
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          {
+            echo "== apksigner verify =="; "$BT/apksigner" verify --verbose --print-certs il-mio-pannello.apk 2>&1 || echo "VERIFICA FALLITA"
+            echo "== aapt badging =="; "$BT/aapt" dump badging il-mio-pannello.apk 2>&1 | grep -E "^package|sdkVersion|targetSdkVersion|native-code|uses-feature|launchable" 
+          } | tee verifica.txt
+          MSG=$(sed ':a;N;$!ba;s/\n/%0A/g' verifica.txt)
+          echo "::notice title=Verifica APK::$MSG"
+          ! grep -q "VERIFICA FALLITA" verifica.txt
+
       - name: APK come allegato della build (verifica)
         uses: actions/upload-artifact@v4
         with:
