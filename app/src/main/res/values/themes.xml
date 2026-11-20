@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="sage_background">#F1F6EC</color>
+    <color name="ic_background">#9CAF88</color>
+    <style name="Theme.Panel" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">@color/sage_background</item>
+        <item name="android:windowFullscreen">true</item>
+    </style>
+</resources>
