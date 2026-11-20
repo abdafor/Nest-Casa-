@@ -14,7 +14,19 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.padding
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import it.casa.pannello.data.SecureStore
+import it.casa.pannello.data.ThumbQuality
+import it.casa.pannello.ui.theme.Corners
+import it.casa.pannello.ui.theme.GlassPanel
+import it.casa.pannello.ui.theme.Txt
 import it.casa.pannello.ui.screens.FullscreenScreen
 import it.casa.pannello.ui.screens.HomeScreen
 import it.casa.pannello.ui.screens.PhoneSetupScreen
@@ -23,6 +35,7 @@ import it.casa.pannello.ui.screens.CamerasScreen
 import it.casa.pannello.ui.screens.CitySettingsScreen
 import it.casa.pannello.ui.screens.InfoScreen
 import it.casa.pannello.ui.screens.MenuScreen
+import it.casa.pannello.ui.screens.QualityScreen
 import it.casa.pannello.ui.screens.WeatherScreen
 import it.casa.pannello.ui.theme.PanelBackground
 import it.casa.pannello.ui.theme.PanelTheme
@@ -40,6 +53,7 @@ sealed interface Screen {
     data object Account : Screen
     data object City : Screen
     data object Info : Screen
+    data object Quality : Screen
     data object Phone : Screen
 }
 
@@ -58,6 +72,8 @@ private fun App(store: SecureStore) {
     val settings by store.settings.collectAsState()
     val stack = remember { mutableStateListOf<Screen>(Screen.Home) }
     val weather by rememberWeather(settings.city)
+    var notice by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(notice) { if (notice != null) { delay(6_000); notice = null } }
     fun push(s: Screen) { stack.add(s) }
     fun pop() { if (stack.size > 1) stack.removeAt(stack.lastIndex) }
 
@@ -76,6 +92,13 @@ private fun App(store: SecureStore) {
                         onOpenCamera = { push(if (settings.credentials.isComplete) Screen.Fullscreen(it.id) else Screen.Account) },
                         onOpenSettings = { push(Screen.Menu) },
                         onOpenWeather = { push(Screen.Weather) },
+                        onThumbTrouble = {
+                            // Video a scatti con qualità Alta: si torna a Risparmio e si avvisa.
+                            if (store.settings.value.thumbQuality == ThumbQuality.HIGH) {
+                                store.update { it.copy(thumbQuality = ThumbQuality.ECO) }
+                                notice = "Video a scatti: tornato a Risparmio"
+                            }
+                        },
                     )
                     Screen.Weather -> WeatherScreen(weather, onBack = ::pop)
                     Screen.Menu -> MenuScreen(
@@ -83,6 +106,7 @@ private fun App(store: SecureStore) {
                         onCameras = { push(Screen.Cameras) },
                         onAccount = { push(Screen.Account) },
                         onWeather = { push(Screen.City) },
+                        onQuality = { push(Screen.Quality) },
                         onPhone = { push(Screen.Phone) },
                         onInfo = { push(Screen.Info) },
                     )
@@ -90,8 +114,15 @@ private fun App(store: SecureStore) {
                     Screen.Account -> AccountScreen(settings, store, onBack = ::pop)
                     Screen.City -> CitySettingsScreen(settings, store, onBack = ::pop)
                     Screen.Info -> InfoScreen(onBack = ::pop)
+                    Screen.Quality -> QualityScreen(settings, store, onBack = ::pop)
                     Screen.Phone -> PhoneSetupScreen(store, onBack = ::pop)
                     is Screen.Fullscreen -> Unit
+                }
+                // Avviso breve in basso (non prende il focus).
+                notice?.let { msg ->
+                    GlassPanel(Modifier.align(Alignment.BottomCenter).padding(bottom = 28.dp), Corners.Pill) {
+                        Txt(msg, 24.sp, Modifier.padding(horizontal = 30.dp, vertical = 14.dp), weight = FontWeight.SemiBold, ellipsis = false)
+                    }
                 }
             }
         }

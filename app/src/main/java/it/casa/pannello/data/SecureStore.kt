@@ -31,6 +31,7 @@ class SecureStore(context: Context) {
             .putString(K_USER, s.user)
             .putString(K_PASS, s.password)
             .putString(K_CITY, s.city)
+            .putString(K_THUMB, s.thumbQuality.name)
             .putString(K_CAMERAS, cams.toString())
             .apply()
         _settings.value = s
@@ -56,6 +57,7 @@ class SecureStore(context: Context) {
             user = prefs.getString(K_USER, "") ?: "",
             password = prefs.getString(K_PASS, "") ?: "",
             city = prefs.getString(K_CITY, Defaults.CITY) ?: Defaults.CITY,
+            thumbQuality = runCatching { ThumbQuality.valueOf(prefs.getString(K_THUMB, null) ?: "") }.getOrDefault(ThumbQuality.ECO),
         )
     }
 
@@ -64,6 +66,7 @@ class SecureStore(context: Context) {
         const val K_USER = "user"
         const val K_PASS = "password"
         const val K_CITY = "city"
+        const val K_THUMB = "thumb_quality"
         const val K_CAMERAS = "cameras"
 
         fun create(ctx: Context): SharedPreferences {

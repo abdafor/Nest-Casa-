@@ -21,11 +21,18 @@ data class Credentials(val user: String, val password: String) {
     val isComplete get() = user.isNotBlank() && password.isNotBlank()
 }
 
+/** Qualità delle miniature in home (uguale per tutte le camere). */
+enum class ThumbQuality(val label: String, val description: String, val high: Boolean) {
+    ECO("Risparmio", "Flusso leggero (stream2): consumi bassi, consigliato con 2 o più camere", false),
+    HIGH("Alta", "Flusso nitido (stream1): più dettaglio ma più Wi-Fi e più lavoro per la TV", true),
+}
+
 data class Settings(
     val cameras: List<Camera>,
     val user: String,
     val password: String,
     val city: String,
+    val thumbQuality: ThumbQuality = ThumbQuality.ECO,
 ) {
     val credentials get() = Credentials(user, password)
 }

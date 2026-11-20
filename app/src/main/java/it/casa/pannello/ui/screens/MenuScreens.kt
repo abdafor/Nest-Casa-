@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import it.casa.pannello.data.Camera
 import it.casa.pannello.data.CameraType
 import it.casa.pannello.data.SecureStore
+import it.casa.pannello.data.ThumbQuality
 import it.casa.pannello.data.Settings
 import it.casa.pannello.data.isValidHost
 import it.casa.pannello.ui.theme.FocusGuard
@@ -76,6 +77,7 @@ fun MenuScreen(
     onCameras: () -> Unit,
     onAccount: () -> Unit,
     onWeather: () -> Unit,
+    onQuality: () -> Unit,
     onPhone: () -> Unit,
     onInfo: () -> Unit,
 ) {
@@ -85,6 +87,7 @@ fun MenuScreen(
         Triple("📷", "Telecamere", onCameras),
         Triple("👤", "Account", onAccount),
         Triple("🌤️", "Meteo", onWeather),
+        Triple("🎞️", "Qualità miniature", onQuality),
         Triple("📱", "Impostazioni dal telefono", onPhone),
         Triple("ℹ️", "Info versione", onInfo),
     )
@@ -242,5 +245,34 @@ private fun CameraEditor(
             Modifier.fillMaxWidth(), primary = true,
         )
         if (!isNew) GlassButton("🗑  Elimina camera", onDelete, Modifier.fillMaxWidth())
+    }
+}
+
+/** "Qualità miniature in home": Risparmio (stream2) o Alta (stream1), per tutte le camere. */
+@Composable
+fun QualityScreen(settings: Settings, store: SecureStore, onBack: () -> Unit) {
+    BackHandler(onBack = onBack)
+    val selected = remember { FocusRequester() }
+    Page(
+        "Qualità miniature in home", selected, onBack,
+        hint = "Vale per tutte le camere. Con Alta, se il video scatta o si blocca, l'app torna da sola a Risparmio.",
+    ) {
+        ThumbQuality.entries.forEach { q ->
+            val isCurrent = settings.thumbQuality == q
+            GlassFocusable(
+                onClick = { store.update { it.copy(thumbQuality = q) } },
+                modifier = Modifier.fillMaxWidth(),
+                focusRequester = if (isCurrent) selected else null,
+            ) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Txt(q.label, 28.sp, weight = FontWeight.SemiBold, ellipsis = false)
+                        Txt(q.description, 19.sp, color = Sage.InkSoft, ellipsis = false)
+                    }
+                    Spacer(Modifier.width(16.dp))
+                    Txt(if (isCurrent) "✓" else "○", 34.sp, color = Sage.Deeper, weight = FontWeight.Bold, ellipsis = false, wrap = false)
+                }
+            }
+        }
     }
 }

@@ -68,6 +68,7 @@ fun HomeScreen(
     onOpenCamera: (Camera) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenWeather: () -> Unit,
+    onThumbTrouble: () -> Unit,
 ) {
     val defaultFocus = remember { FocusRequester() }
     val creds = settings.credentials
@@ -110,6 +111,8 @@ fun HomeScreen(
                         CameraTile(
                             camera = cam,
                             creds = creds,
+                            high = settings.thumbQuality.high,
+                            onTrouble = onThumbTrouble,
                             focusRequester = if (index == 0) defaultFocus else null,
                             onClick = { onOpenCamera(cam) },
                         )
@@ -122,7 +125,14 @@ fun HomeScreen(
 
 /** Una miniatura: video a bassa qualità dentro una cornice di vetro. Senza credenziali: icona a chiave. */
 @Composable
-private fun CameraTile(camera: Camera, creds: Credentials, focusRequester: FocusRequester?, onClick: () -> Unit) {
+private fun CameraTile(
+    camera: Camera,
+    creds: Credentials,
+    high: Boolean,
+    onTrouble: () -> Unit,
+    focusRequester: FocusRequester?,
+    onClick: () -> Unit,
+) {
     var status by remember { mutableStateOf(StreamStatus.CONNECTING) }
     GlassFocusable(
         onClick = onClick,
@@ -130,7 +140,11 @@ private fun CameraTile(camera: Camera, creds: Credentials, focusRequester: Focus
         focusRequester = focusRequester,
     ) {
         Box(Modifier.fillMaxSize().padding(7.dp).clip(RoundedCornerShape(26.dp)).background(Color(0xFF1E2A22))) {
-            LiveVideo(camera, creds, high = false, modifier = Modifier.fillMaxSize(), onStatus = { status = it })
+            // Miniatura: mai audio. Con qualità Alta, se il video scatta si torna a Risparmio (vedi MainActivity).
+            LiveVideo(
+                camera, creds, high = high, modifier = Modifier.fillMaxSize(), audio = false,
+                onTrouble = if (high) onTrouble else null, onStatus = { status = it },
+            )
             Box(
                 Modifier.align(Alignment.BottomStart).fillMaxWidth()
                     .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC1E2A22))))

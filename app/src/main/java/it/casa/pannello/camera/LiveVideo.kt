@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -65,6 +66,8 @@ fun LiveVideo(
     high: Boolean,
     modifier: Modifier = Modifier,
     fit: Boolean = false,
+    audio: Boolean = high,
+    onTrouble: (() -> Unit)? = null,
     onStatus: (StreamStatus) -> Unit = {},
 ) {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -90,7 +93,8 @@ fun LiveVideo(
 
     Box(modifier) {
         if (hasCredentials && started) {
-            StreamPlayer(camera, creds, high, fit) { status = it }
+            // key(high): cambiando qualità il player viene ricreato da zero.
+            key(high) { StreamPlayer(camera, creds, high, audio, fit, onTrouble) { status = it } }
         }
         when (status) {
             StreamStatus.LIVE -> Unit
@@ -115,11 +119,16 @@ private fun StreamPlayer(
     camera: Camera,
     creds: Credentials,
     high: Boolean,
+    audio: Boolean,
     fit: Boolean,
+    onTrouble: (() -> Unit)?,
     onStatus: (StreamStatus) -> Unit,
 ) {
     val context = LocalContext.current
-    val player = remember { buildPlayer(context, audio = high) }
+    val player = remember { buildPlayer(context, audio = audio) }
+    val currentOnTrouble by rememberUpdatedState(onTrouble)
+    var everReady by remember { mutableStateOf(false) }          // il flusso ha già funzionato almeno una volta
+    val rebuffers = remember { ArrayDeque<Long>() }              // istanti delle interruzioni recenti
     DisposableEffect(player) { onDispose { player.release() } }
 
     var generation by remember { mutableIntStateOf(0) }   // aumenta a ogni nuovo tentativo
@@ -131,7 +140,15 @@ private fun StreamPlayer(
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 buffering = playbackState == Player.STATE_BUFFERING
+                if (playbackState == Player.STATE_BUFFERING && everReady) {
+                    // Video "a scatti": 3 interruzioni in 30 secondi → segnala il problema.
+                    val now = android.os.SystemClock.elapsedRealtime()
+                    rebuffers.addLast(now)
+                    while (rebuffers.isNotEmpty() && now - rebuffers.first() > 30_000) rebuffers.removeFirst()
+                    if (rebuffers.size >= 3) currentOnTrouble?.invoke()
+                }
                 if (playbackState == Player.STATE_READY) {
+                    everReady = true
                     failures = 0
                     currentOnStatus(StreamStatus.LIVE)
                 }
@@ -144,6 +161,7 @@ private fun StreamPlayer(
             override fun onPlayerError(error: PlaybackException) {
                 // Nei log: solo nome camera e tipo d'errore. MAI l'indirizzo.
                 SafeLog.w(TAG, "Errore flusso '${camera.name}': ${error.errorCodeName}")
+                if (everReady) currentOnTrouble?.invoke()   // era partito bene e poi è caduto
                 failures++
                 currentOnStatus(StreamStatus.OFFLINE)
                 generation++
@@ -156,6 +174,10 @@ private fun StreamPlayer(
     // Guardiano: se resta "in caricamento" per 15 secondi, si riconnette da capo.
     LaunchedEffect(buffering, generation) {
         if (buffering) {
+            if (everReady && currentOnTrouble != null) {
+                delay(6_000)                      // fermo da 6 secondi: video bloccato
+                currentOnTrouble?.invoke()
+            }
             delay(15_000)
             failures++
             currentOnStatus(StreamStatus.OFFLINE)
