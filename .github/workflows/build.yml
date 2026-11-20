@@ -82,7 +82,7 @@ jobs:
       - name: Pubblica la Release
         if: steps.sign.outputs.signed == 'true'
         run: |
-          VERSION="1.1.${{ github.run_number }}"
+          VERSION="1.2.${{ github.run_number }}"
           gh release create "v$VERSION" il-mio-pannello.apk \
             --target "$GITHUB_SHA" --latest \
             --title "Il mio pannello $VERSION" \

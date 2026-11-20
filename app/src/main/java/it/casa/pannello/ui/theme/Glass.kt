@@ -74,6 +74,25 @@ object Corners {
     val Pill = RoundedCornerShape(50)
 }
 
+/**
+ * Aspetto dell'elemento selezionato. [Default] = per le schermate chiare (bordo salvia scuro);
+ * [Home] = per la home con scene meteo (bordo salvia chiaro #BFD3B0, alone largo, ingrandimento ~2%).
+ */
+data class FocusStyle(
+    val scale: Float,
+    val borderWidth: Dp,
+    val borderColor: Color,
+    val glowColor: Color,
+    val glowElevation: Dp,
+) {
+    companion object {
+        val Default = FocusStyle(1.08f, 5.dp, Color(0xFF4B6343), Color(0xFF4B6343), 38.dp)
+        val Home = FocusStyle(1.02f, 6.dp, Color(0xFFBFD3B0), Color(0xFFBFD3B0), 80.dp)
+    }
+}
+
+val LocalFocusStyle = compositionLocalOf { FocusStyle.Default }
+
 /** Vero quando l'elemento che contiene il testo ha il focus del telecomando. */
 val LocalFocused = compositionLocalOf { false }
 
@@ -85,13 +104,13 @@ val LocalFocused = compositionLocalOf { false }
  * [focus] va da 0 (non selezionato) a 1 (selezionato). Con focus alto: bordo spesso verde
  * salvia SCURO (5 dp), alone/ombra salvia e sfondo quasi opaco, ben visibili da 3 metri.
  */
-fun Modifier.glass(shape: Shape = Corners.Card, focus: Float = 0f): Modifier = this
+fun Modifier.glass(shape: Shape = Corners.Card, focus: Float = 0f, style: FocusStyle = FocusStyle.Default): Modifier = this
     .shadow(
-        elevation = (12f + 26f * focus).dp,
+        elevation = (12f + (style.glowElevation.value - 12f) * focus).dp,
         shape = shape,
         clip = false,
-        ambientColor = lerp(Sage.Dark.copy(alpha = 0.18f), Sage.Deeper, focus),
-        spotColor = lerp(Sage.Dark.copy(alpha = 0.30f), Sage.Deeper, focus),
+        ambientColor = lerp(Sage.Dark.copy(alpha = 0.18f), style.glowColor, focus),
+        spotColor = lerp(Sage.Dark.copy(alpha = 0.30f), style.glowColor, focus),
     )
     .clip(shape)
     .background(
@@ -103,8 +122,8 @@ fun Modifier.glass(shape: Shape = Corners.Card, focus: Float = 0f): Modifier = t
         )
     )
     .border(
-        width = (1f + 4f * focus).dp,
-        brush = if (focus > 0.02f) SolidColor(lerp(Color.White.copy(alpha = 0.9f), Sage.Deeper, focus))
+        width = (1f + (style.borderWidth.value - 1f) * focus).dp,
+        brush = if (focus > 0.02f) SolidColor(lerp(Color.White.copy(alpha = 0.9f), style.borderColor, focus))
         else Brush.linearGradient(listOf(Color.White.copy(alpha = 0.95f), Color.White.copy(alpha = 0.35f))),
         shape = shape,
     )
@@ -129,13 +148,14 @@ fun GlassFocusable(
     content: @Composable BoxScope.(focused: Boolean) -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
+    val style = LocalFocusStyle.current
     val f by animateFloatAsState(if (focused) 1f else 0f, tween(240), label = "focus")
     Box(
         modifier
             .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-            .graphicsLayer { scaleX = 1f + 0.08f * f; scaleY = 1f + 0.08f * f }
+            .graphicsLayer { scaleX = 1f + (style.scale - 1f) * f; scaleY = 1f + (style.scale - 1f) * f }
             .onFocusChanged { focused = it.isFocused }
-            .glass(shape, f)
+            .glass(shape, f, style)
             .veil(1f - f)
             .clickable(onClick = onClick)
     ) {
@@ -179,6 +199,8 @@ fun Txt(
     align: TextAlign? = null,
     ellipsis: Boolean = true,
     wrap: Boolean = true,
+    letterSpacing: TextUnit = TextUnit.Unspecified,
+    lineHeight: TextUnit = TextUnit.Unspecified,
 ) {
     val focused = LocalFocused.current
     val c = when {
@@ -188,7 +210,8 @@ fun Txt(
     }
     Text(
         text = text, modifier = modifier, color = c, fontSize = size, fontWeight = weight,
-        maxLines = maxLines, softWrap = wrap,
+        maxLines = maxLines, softWrap = wrap, fontFamily = Inter,
+        letterSpacing = letterSpacing, lineHeight = lineHeight,
         overflow = if (ellipsis) TextOverflow.Ellipsis else TextOverflow.Visible, textAlign = align,
     )
 }
@@ -230,8 +253,8 @@ fun GlassIconButton(
 
 /** Icona a ingranaggio disegnata (nessuna immagine esterna). */
 @Composable
-fun GearIcon(modifier: Modifier = Modifier, color: Color = Sage.Deeper) {
-    Canvas(modifier.size(36.dp)) {
+fun GearIcon(modifier: Modifier = Modifier, color: Color = Sage.Deeper, size: Dp = 36.dp) {
+    Canvas(modifier.size(size)) {
         val c = center
         val r = size.minDimension / 2f
         val toothW = r * 0.36f
@@ -283,7 +306,7 @@ fun GlassField(
                 value = value,
                 onValueChange = onValueChange,
                 singleLine = true,
-                textStyle = TextStyle(color = Sage.InkDeep, fontSize = 24.sp, fontWeight = FontWeight.Medium),
+                textStyle = TextStyle(color = Sage.InkDeep, fontSize = 24.sp, fontWeight = FontWeight.Medium, fontFamily = Inter),
                 cursorBrush = SolidColor(Sage.Deeper),
                 visualTransformation = if (password && !reveal) PasswordVisualTransformation() else VisualTransformation.None,
                 keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = imeAction),

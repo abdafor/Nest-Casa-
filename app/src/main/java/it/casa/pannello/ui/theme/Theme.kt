@@ -9,6 +9,10 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import it.casa.pannello.R
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.lightColorScheme
 
@@ -28,6 +32,15 @@ object Sage {
     val InkDeep = Color(0xFF0F1A13)   // testo sugli elementi selezionati (più scuro)
     val Alert = Color(0xFFB3541E)     // avvisi (camera non raggiungibile)
 }
+
+/** Font Inter (licenza OFL, vedi licenze/Inter-OFL.txt), file in res/font. */
+val Inter = FontFamily(
+    Font(R.font.inter_extralight, FontWeight.W200),
+    Font(R.font.inter_regular, FontWeight.Normal),
+    Font(R.font.inter_medium, FontWeight.Medium),
+    Font(R.font.inter_semibold, FontWeight.SemiBold),
+    Font(R.font.inter_bold, FontWeight.Bold),
+)
 
 @Composable
 fun PanelTheme(content: @Composable () -> Unit) {

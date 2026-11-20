@@ -18,8 +18,11 @@ import kotlin.math.roundToInt
 /** Tipo di tempo: decide lo sfondo animato della scheda meteo. */
 enum class WeatherKind { CLEAR, CLOUDY, FOG, RAIN, STORM, SNOW }
 
-data class HourPoint(val time: String, val temp: Int, val emoji: String, val rain: Int?)
-data class DayPoint(val label: String, val emoji: String, val min: Int, val max: Int, val rain: Int?)
+/** Icone meteo disegnate dall'app (nessuna immagine esterna, stesso stile ovunque). */
+enum class IconKind { SUN, MOON, MOON_CLOUD, SUN_CLOUD, CLOUD, RAIN, STORM, SNOW, FOG }
+
+data class HourPoint(val time: String, val temp: Int, val emoji: String, val rain: Int?, val icon: IconKind = IconKind.CLOUD)
+data class DayPoint(val label: String, val emoji: String, val min: Int, val max: Int, val rain: Int?, val icon: IconKind = IconKind.CLOUD)
 
 data class WeatherData(
     val place: String,
@@ -32,6 +35,7 @@ data class WeatherData(
     val sunrise: String,
     val sunset: String,
     val emoji: String,
+    val icon: IconKind,
     val description: String,
     val kind: WeatherKind,
     val isDay: Boolean,
@@ -85,6 +89,7 @@ object WeatherClient {
                     time = if (i == start) "Ora" else times.getString(i).substring(11, 16),
                     temp = hourly.getJSONArray("temperature_2m").getDouble(i).roundToInt(),
                     emoji = icon(hourly.getJSONArray("weather_code").getInt(i), hourly.getJSONArray("is_day").optInt(i, 1) == 1),
+                    icon = iconKind(hourly.getJSONArray("weather_code").getInt(i), hourly.getJSONArray("is_day").optInt(i, 1) == 1),
                     rain = hourly.getJSONArray("precipitation_probability").let { if (it.isNull(i)) null else it.getInt(i) },
                 )
             }
@@ -98,6 +103,7 @@ object WeatherClient {
                 DayPoint(
                     label = "$dow ${date.dayOfMonth}",
                     emoji = icon(daily.getJSONArray("weather_code").getInt(i), true),
+                    icon = iconKind(daily.getJSONArray("weather_code").getInt(i), true),
                     min = daily.getJSONArray("temperature_2m_min").getDouble(i).roundToInt(),
                     max = daily.getJSONArray("temperature_2m_max").getDouble(i).roundToInt(),
                     rain = daily.getJSONArray("precipitation_probability_max").let { if (it.isNull(i)) null else it.getInt(i) },
@@ -115,6 +121,7 @@ object WeatherClient {
                 sunrise = daily.getJSONArray("sunrise").getString(0).substring(11, 16),
                 sunset = daily.getJSONArray("sunset").getString(0).substring(11, 16),
                 emoji = icon(code, isDay),
+                icon = iconKind(code, isDay),
                 description = describe(code),
                 kind = kindOf(code),
                 isDay = isDay,
@@ -133,6 +140,18 @@ object WeatherClient {
         } finally {
             c.disconnect()
         }
+    }
+
+    private fun iconKind(code: Int, isDay: Boolean): IconKind = when (code) {
+        0 -> if (isDay) IconKind.SUN else IconKind.MOON
+        1 -> if (isDay) IconKind.SUN else IconKind.MOON_CLOUD
+        2 -> if (isDay) IconKind.SUN_CLOUD else IconKind.MOON_CLOUD
+        3 -> IconKind.CLOUD
+        45, 48 -> IconKind.FOG
+        in 51..67, 80, 81 -> IconKind.RAIN
+        82, 95, 96, 99 -> IconKind.STORM
+        in 71..77, 85, 86 -> IconKind.SNOW
+        else -> IconKind.CLOUD
     }
 
     private fun kindOf(code: Int) = when (code) {
