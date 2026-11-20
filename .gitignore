@@ -8,3 +8,4 @@ local.properties
 *.p12
 captures/
 .DS_Store
+segreti-da-copiare.txt

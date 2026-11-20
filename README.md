@@ -39,5 +39,5 @@ password né indirizzi completi. Nessuna immagine viene salvata. L'unico traffic
 Kotlin + Jetpack Compose per TV + Media3 (RTSP). Cartelle: `camera/` (video e ONVIF), `data/` (salvataggio),
 `ui/` (grafica e schermate), `server/` (impostazioni dal telefono), `weather/`.
 La build parte da sola a ogni push (`.github/workflows/build.yml`) e pubblica l'APK nelle *Releases*.
-La firma usa il secret `SIGNING_PASSWORD`.
+La firma usa i secret `SIGNING_KEYSTORE_B64` e `SIGNING_PASSWORD`.
 Predisposto (spento) il modo "launcher": in `AndroidManifest.xml` basta mettere `enabled="true"` su `LauncherAlias`.

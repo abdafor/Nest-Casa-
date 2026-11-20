@@ -18,6 +18,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+      SIGNING_KEYSTORE_B64: ${{ secrets.SIGNING_KEYSTORE_B64 }}
     steps:
       - uses: actions/checkout@v4
 
@@ -28,30 +29,19 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # Chiave di firma: creata UNA volta sola e poi riusata, così gli aggiornamenti
-      # si installano sopra la versione precedente. La password sta nei secret del repository.
-      # Il file della chiave (protetto dalla password) vive in una Release privata "chiave-firma".
+      # Chiave di firma: sta SOLO nei secret del repository (mai nel codice né in file pubblici).
+      #   SIGNING_KEYSTORE_B64 = il file della chiave codificato in testo
+      #   SIGNING_PASSWORD     = la sua password
       - name: Prepara la chiave di firma
         id: sign
         run: |
-          if [ -z "$SIGNING_PASSWORD" ]; then
-            echo "::warning::Manca il secret SIGNING_PASSWORD: compilo senza firma e non pubblico la Release."
+          if [ -z "$SIGNING_PASSWORD" ] || [ -z "$SIGNING_KEYSTORE_B64" ]; then
+            echo "::warning::Mancano i secret SIGNING_KEYSTORE_B64 / SIGNING_PASSWORD: compilo senza firma e non pubblico la Release."
             echo "signed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          mkdir -p "$RUNNER_TEMP/keys"
-          KS="$RUNNER_TEMP/keys/pannello-release.p12"
-          if gh release view chiave-firma >/dev/null 2>&1; then
-            gh release download chiave-firma -p pannello-release.p12 -D "$RUNNER_TEMP/keys" --clobber
-          else
-            keytool -genkeypair -storetype PKCS12 -keystore "$KS" -alias pannello \
-              -keyalg RSA -keysize 2048 -validity 36500 \
-              -storepass "$SIGNING_PASSWORD" -keypass "$SIGNING_PASSWORD" \
-              -dname "CN=Il mio pannello, O=Casa, C=IT"
-            gh release create chiave-firma "$KS" --prerelease --target "$GITHUB_SHA" \
-              --title "Chiave di firma (NON cancellare)" \
-              --notes "Chiave di firma dell'app, protetta dalla password nei secret. Se la cancelli, gli aggiornamenti non si installeranno più sopra la versione vecchia."
-          fi
+          KS="$RUNNER_TEMP/pannello-release.p12"
+          echo "$SIGNING_KEYSTORE_B64" | base64 -d > "$KS"
           echo "KEYSTORE_FILE=$KS" >> "$GITHUB_ENV"
           echo "KEYSTORE_PASSWORD=$SIGNING_PASSWORD" >> "$GITHUB_ENV"
           echo "signed=true" >> "$GITHUB_OUTPUT"
